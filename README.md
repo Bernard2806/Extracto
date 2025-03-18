@@ -1,12 +1,12 @@
 <img align="right" width="100" height="100" src="https://github.com/user-attachments/assets/083b8d83-9065-49b1-ba54-f26dcd547d8c">
 
 ### Extracto  
-###### Proyecto: Herramienta de Extracción de Archivos de Unidades Conectadas
+###### Proyecto: Herramienta de Extracción de Archivos de PCs Viejas
 
 ---
 
 ### Descripción  
-Este repositorio contiene el código de una herramienta llamada **Extracto**, diseñada para facilitar la extracción de archivos desde unidades conectadas a tu PC. La herramienta permite seleccionar unidades y extraer archivos específicos, como imágenes, documentos, y videos, copiándolos a un destino de tu elección. La aplicación es compatible desde Windows XP en adelante.
+Este repositorio contiene el código de una herramienta llamada **Extracto**, diseñada para facilitar la extracción de archivos de una PC. La herramienta permite seleccionar unidades y extraer archivos específicos, como imágenes, documentos, y videos, copiándolos a un destino de tu elección. La aplicación es compatible desde Windows XP en adelante.
 
 - 📂 Extracción de archivos de unidades conectadas  
 - 🎥 Soporte para imágenes, documentos y videos  
