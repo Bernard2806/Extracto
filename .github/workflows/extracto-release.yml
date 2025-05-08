@@ -1,0 +1,126 @@
+name: Extracto Release Automation
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - 'Windows/Extracto.bat'
+
+jobs:
+  create-release:
+    runs-on: windows-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch all history for version tags
+      
+      - name: Set up Git
+        run: |
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+      
+      - name: Extract version from script
+        id: get-version
+        shell: pwsh
+        run: |
+          $content = Get-Content -Path "Windows/Extracto.bat" -Raw
+          if ($content -match 'Herramienta de Extracción de Archivos v(\d+\.\d+)') {
+            $version = $matches[1]
+            echo "VERSION=$version" >> $env:GITHUB_OUTPUT
+            echo "Detected version: $version"
+          } else {
+            echo "VERSION=1.0" >> $env:GITHUB_OUTPUT
+            echo "No version found, using default 1.0"
+          }
+      
+      - name: Get latest release tag
+        id: latest-tag
+        continue-on-error: true
+        run: |
+          $latestTag = $(git tag --sort=-v:refname | Select-Object -First 1)
+          if ($latestTag) {
+            echo "TAG=$latestTag" >> $env:GITHUB_OUTPUT
+            echo "Latest tag: $latestTag"
+          } else {
+            echo "TAG=v0.0" >> $env:GITHUB_OUTPUT
+            echo "No tags found, using default v0.0"
+          }
+        shell: pwsh
+      
+      - name: Determine if new release is needed
+        id: check-release
+        shell: pwsh
+        run: |
+          $scriptVersion = "${{ steps.get-version.outputs.VERSION }}"
+          $latestTag = "${{ steps.latest-tag.outputs.TAG }}"
+          
+          if ($latestTag -match 'v(\d+\.\d+)') {
+            $tagVersion = $matches[1]
+            if ([version]$scriptVersion -gt [version]$tagVersion) {
+              echo "CREATE_RELEASE=true" >> $env:GITHUB_OUTPUT
+              echo "New version detected: $scriptVersion > $tagVersion"
+            } else {
+              echo "CREATE_RELEASE=false" >> $env:GITHUB_OUTPUT
+              echo "No new version detected: $scriptVersion <= $tagVersion"
+            }
+          } else {
+            echo "CREATE_RELEASE=true" >> $env:GITHUB_OUTPUT
+            echo "Tag format not recognized, creating new release"
+          }
+      
+      - name: Get commit messages
+        id: get-commits
+        if: steps.check-release.outputs.CREATE_RELEASE == 'true'
+        shell: pwsh
+        run: |
+          $lastTag = "${{ steps.latest-tag.outputs.TAG }}"
+          $commitRange = if ($lastTag -ne "v0.0") { "${lastTag}..HEAD" } else { "" }
+          
+          if ($commitRange) {
+            $commitMessages = $(git log $commitRange --pretty=format:"- %s" -- "Windows/Extracto.bat")
+          } else {
+            $commitMessages = $(git log -10 --pretty=format:"- %s" -- "Windows/Extracto.bat")
+          }
+          
+          $commitMessages = $commitMessages -replace '"', '\"'
+          $commitMessages = $commitMessages -replace '`n', '%0A'
+          
+          echo "COMMIT_MESSAGES<<EOF" >> $env:GITHUB_OUTPUT
+          echo $commitMessages >> $env:GITHUB_OUTPUT
+          echo "EOF" >> $env:GITHUB_OUTPUT
+      
+      - name: Create Release
+        id: create-release
+        if: steps.check-release.outputs.CREATE_RELEASE == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: v${{ steps.get-version.outputs.VERSION }}
+          name: "Extracto v${{ steps.get-version.outputs.VERSION }}"
+          body: |
+            # Herramienta de Extracción de Archivos v${{ steps.get-version.outputs.VERSION }}
+            
+            Nueva versión de la herramienta de extracción de archivos con mejoras y correcciones.
+            
+            ## Cambios desde la última versión:
+            ${{ steps.get-commits.outputs.COMMIT_MESSAGES }}
+            
+            ## Instrucciones:
+            1. Descarga el archivo Extracto.bat
+            2. Ejecútalo como administrador
+            3. Sigue las instrucciones en pantalla
+            
+            _Nota: Esta release fue generada automáticamente por GitHub Actions._
+          files: Windows/Extracto.bat
+          draft: false
+          prerelease: false
+      
+      - name: Output Release URL
+        if: steps.create-release.outputs.url != ''
+        run: |
+          echo "Release URL: ${{ steps.create-release.outputs.url }}"
