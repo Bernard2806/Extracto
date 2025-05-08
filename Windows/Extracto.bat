@@ -13,7 +13,7 @@ if %errorlevel% neq 0 (
 )
 
 :: Configuración del script
-title Herramienta de Extracción de Archivos v3.0
+title Herramienta de Extracción de Archivos v3.1
 color 0A
 
 :: Limpiar variables
@@ -75,7 +75,7 @@ echo ========================================
 echo         ACERCA DE ESTA HERRAMIENTA
 echo ========================================
 echo.
-echo  Herramienta de Extracción de Archivos v3.0
+echo  Herramienta de Extracción de Archivos v3.1
 echo  Actualizada: Mayo 2025
 echo.
 echo  Esta herramienta permite extraer diferentes
