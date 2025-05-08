@@ -13,7 +13,7 @@ if %errorlevel% neq 0 (
 )
 
 :: Configuración del script
-title Herramienta de Extracción de Archivos v2.0
+title Herramienta de Extracción de Archivos v3.0
 color 0A
 
 :: Limpiar variables
@@ -75,12 +75,13 @@ echo ========================================
 echo         ACERCA DE ESTA HERRAMIENTA
 echo ========================================
 echo.
-echo  Herramienta de Extracción de Archivos v2.0
-echo  Creada: Abril 2025
+echo  Herramienta de Extracción de Archivos v3.0
+echo  Actualizada: Mayo 2025
 echo.
 echo  Esta herramienta permite extraer diferentes
 echo  tipos de archivos de cualquier unidad
-echo  conectada a su equipo.
+echo  conectada a su equipo y organizarlos en
+echo  subcarpetas por extensión.
 echo.
 echo ========================================
 pause
@@ -184,10 +185,10 @@ set /a volverAtras=%maxOpcion%+2
 if %destinoOpcion% GEQ 1 if %destinoOpcion% LEQ %maxOpcion% (
     if %destinoOpcion%==%maxOpcion% (
         set "destino=C:\Extraccion"
-        goto confirmar_extraccion
+        goto menu_organizacion
     )
     set "destino=!unidad[%destinoOpcion%]!\Extraccion"
-    goto confirmar_extraccion
+    goto menu_organizacion
 ) else if "%destinoOpcion%"=="%opcionPersonalizada%" (
     goto destino_personalizado
 ) else if "%destinoOpcion%"=="%volverAtras%" (
@@ -209,7 +210,30 @@ echo Ejemplo: D:\Mis Documentos\Extraccion
 echo.
 echo ========================================
 set /p destino=Ruta completa: 
-goto confirmar_extraccion
+goto menu_organizacion
+
+:menu_organizacion
+cls
+echo ========================================
+echo    SELECCIONE MODO DE ORGANIZACIÓN
+echo ========================================
+echo.
+echo 1. Organizar por extensión (una carpeta por cada tipo)
+echo 2. Organizar por fecha (año/mes)
+echo 3. Sin organización adicional (modo clásico)
+echo 4. Volver al menú anterior
+echo.
+echo ========================================
+set /p modo_organizacion=Seleccione una opción: 
+
+if "%modo_organizacion%"=="1" set "organizacion=extension" & goto confirmar_extraccion
+if "%modo_organizacion%"=="2" set "organizacion=fecha" & goto confirmar_extraccion
+if "%modo_organizacion%"=="3" set "organizacion=clasico" & goto confirmar_extraccion
+if "%modo_organizacion%"=="4" goto elegir_destino
+
+echo Opción no válida. Intente nuevamente.
+timeout /t 2 >nul
+goto menu_organizacion
 
 :confirmar_extraccion
 cls
@@ -220,6 +244,7 @@ echo.
 echo Origen: %unidadSeleccionada%
 echo Tipo: %nombre%
 echo Destino: %destino%\%nombre%
+echo Organización: !organizacion!
 echo.
 echo ¿Desea continuar? (S/N)
 echo.
@@ -227,11 +252,11 @@ echo ========================================
 set /p confirmar=Su elección: 
 
 if /i "%confirmar%"=="S" goto extraer_archivos
-if /i "%confirmar%"=="N" goto menu_extraccion
+if /i "%confirmar%"=="N" goto menu_organizacion
 goto confirmar_extraccion
 
 :extraer_archivos
-:: Crear carpeta de extracción
+:: Crear carpeta de extracción principal
 if not exist "%destino%\%nombre%" mkdir "%destino%\%nombre%"
 
 :: Mostrar barra de progreso
@@ -243,23 +268,25 @@ echo.
 echo Origen: %unidadSeleccionada%
 echo Tipo: %nombre%
 echo Destino: %destino%\%nombre%
+echo Organización: !organizacion!
 echo.
 echo Buscando archivos, por favor espere...
 
-:: Crear un archivo temporal para contar resultados
-set "temp_file=%temp%\conteo_temp.txt"
+:: Crear archivo de log
 set "log_file=%destino%\%nombre%\log_extraccion.txt"
 echo Detalles de la extracción de %nombre% desde %unidadSeleccionada% > "%log_file%"
 echo Fecha: %date% Hora: %time% >> "%log_file%"
+echo Modo de organización: !organizacion! >> "%log_file%"
 echo. >> "%log_file%"
 
-:: Copiar archivos seleccionados
+:: Copiar archivos seleccionados según el modo de organización
 for %%E in (%extension%) do (
     echo Buscando archivos .%%E...
     echo Archivos .%%E: >> "%log_file%"
     
     :: Contar archivos para esta extensión y copiarlos
     set count_ext=0
+    
     for /f "tokens=*" %%F in ('dir /b /s "%unidadSeleccionada%\*.%%E" 2^>nul') do (
         set /a count_ext+=1
         set /a totalCopiados+=1
@@ -271,14 +298,49 @@ for %%E in (%extension%) do (
         :: Mostrar progreso
         echo Copiando: %%~nxF
         
-        :: Registrar en el log
-        echo %%F >> "%log_file%"
-        
-        :: Copiar el archivo
-        copy "%%F" "%destino%\%nombre%\" >nul 2>&1
+        :: Determinar la carpeta de destino según el modo de organización
+        if "!organizacion!"=="extension" (
+            :: Crear subcarpeta si no existe
+            if not exist "%destino%\%nombre%\%%E" mkdir "%destino%\%nombre%\%%E"
+            
+            :: Copiar el archivo a la subcarpeta correspondiente
+            copy "%%F" "%destino%\%nombre%\%%E\" >nul 2>&1
+            
+            :: Registrar en el log
+            echo %%F --^> %destino%\%nombre%\%%E\%%~nxF >> "%log_file%"
+            
+        ) else if "!organizacion!"=="fecha" (
+            :: Obtener fecha de creación del archivo
+            for /f "tokens=1-3 delims=/" %%a in ('dir /tc "%%F" ^| findstr "/"') do (
+                set "dia=%%a"
+                set "mes=%%b"
+                set "anio=%%c"
+            )
+            
+            :: Extraer solo el año (últimos 4 caracteres)
+            set "anio=!anio:~-4!"
+            
+            :: Crear subcarpetas de año/mes si no existen
+            if not exist "%destino%\%nombre%\!anio!" mkdir "%destino%\%nombre%\!anio!"
+            if not exist "%destino%\%nombre%\!anio!\!mes!" mkdir "%destino%\%nombre%\!anio!\!mes!"
+            
+            :: Copiar el archivo a la subcarpeta correspondiente
+            copy "%%F" "%destino%\%nombre%\!anio!\!mes!\" >nul 2>&1
+            
+            :: Registrar en el log
+            echo %%F --^> %destino%\%nombre%\!anio!\!mes!\%%~nxF >> "%log_file%"
+            
+        ) else (
+            :: Modo clásico: todos en la misma carpeta
+            copy "%%F" "%destino%\%nombre%\" >nul 2>&1
+            
+            :: Registrar en el log
+            echo %%F --^> %destino%\%nombre%\%%~nxF >> "%log_file%"
+        )
     )
     
     echo Encontrados !count_ext! archivos .%%E
+    echo Total encontrados: !count_ext! archivos >> "%log_file%"
     echo. >> "%log_file%"
     echo.
 )
@@ -292,6 +354,7 @@ echo ========================================
 echo.
 echo Se copiaron %totalCopiados% archivos (aproximadamente %totalMB% MB)
 echo Los archivos se guardaron en "%destino%\%nombre%"
+echo Organizados por: !organizacion!
 echo.
 echo Se ha creado un archivo de registro en:
 echo %log_file%
